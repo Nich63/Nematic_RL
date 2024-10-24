@@ -48,9 +48,17 @@ class KineticData(object):
             pickle.dump(self, f)
 
     @staticmethod
-    def loader(path):
+    def loader(path, device='cuda:0'):
         with open(path, 'rb') as f:
-            return pickle.load(f)
+            return pickle.load(f).to_device(device)
+        
+    def to_device(self, device):
+        self.psi_h = self.psi_h.to(device)
+        self.psim1_h = self.psim1_h.to(device)
+        self.u_h = self.u_h.to(device)
+        self.v_h = self.v_h.to(device)
+        self.Bm1_h = self.Bm1_h.to(device)
+        return self
 
 
 class KineticSolver(object):

@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import time
+import os
 
 from kinetic_solver import KineticSolver, KineticData
 from stable_baselines3 import PPO
@@ -20,8 +21,9 @@ class ActiveNematicEnv(gym.Env):
                  solver=None, simulation_data=None, data_path=None, intensity=5):
         super(ActiveNematicEnv, self).__init__()
         
+        self.device = device
         if solver is None:
-            self.solver = KineticSolver(*solver_paras)
+            self.solver = KineticSolver(*solver_paras, device=device)
 
         else:
             self.solver = solver
@@ -46,6 +48,7 @@ class ActiveNematicEnv(gym.Env):
         else:
             self.random_flag = False
             self.simulation_data = simulation_data
+
         self.data_path = data_path 
 
         self.intensity = intensity
@@ -62,7 +65,7 @@ class ActiveNematicEnv(gym.Env):
             # 更新数据
             self.simulation_data.setter(*init_data)
         else:
-            self.simulation_data = self.simulation_data.loader(self.data_path)
+            self.simulation_data = self.simulation_data.loader(self.data_path, device=self.device)
         
         # 返回降维后的初始状态
         return self._convolutional_reduce(), {}
@@ -106,10 +109,19 @@ class ActiveNematicEnv(gym.Env):
 
         # 8. 使用 roll 函数将矩阵平移并处理周期性边界条件
         light_matrix_shifted = np.roll(light_matrix_centered, shift=(y_translation, x_translation), axis=(0, 1))
-
+        # light_matrix_shifted = np.ones((grid_size, grid_size))
         return light_matrix_shifted
 
+    @staticmethod
+    def contains_nan(tuple_of_arrays):
+        for i, array in enumerate(tuple_of_arrays):
+            if np.isnan(array.cpu().data.numpy()).any():
+                print(f"Array {i} contains NaN.")
+                return True
+        return False
+
     def step(self, action):
+        info = {}
         # print('====steping===')
         # 根据action更新active stress field
         light_matrix = self._action2light(action)
@@ -123,14 +135,15 @@ class ActiveNematicEnv(gym.Env):
         terminated = self._check_terminated(done_flag)
 
         # check if nan in reward
-        if np.isnan(reward):
-            print('Nan in reward')
+        if self.contains_nan(new_datas):
+            print('Nan encontered')
             terminated = True
+            info['error'] = "NaN encountered"
         
         # 返回下一状态（降维后的）和其他信息
         next_state = self._convolutional_reduce()
         truncated = self._check_truncated()
-        return next_state, reward, terminated, truncated, {}
+        return next_state, reward, terminated, truncated, info
 
     def _check_truncated(self):
         return False
@@ -174,12 +187,17 @@ class ActiveNematicEnv(gym.Env):
 from stable_baselines3.common.callbacks import BaseCallback
 import numpy as np
 
-class RewardLoggingCallback(BaseCallback):
+class MyCallback(BaseCallback):
     """
     自定义回调，用于记录每一步的奖励并保存到 TensorBoard
     """
-    def __init__(self, verbose=0):
+    # TODO: 断点重续
+    def __init__(self, save_path, verbose=0, name_prefix: str = 'rl_model', save_freq=2000):
         super().__init__(verbose)
+        self.save_freq = save_freq
+        self.save_path = save_path
+        self.name_prefix = name_prefix
+        os.makedirs(save_path, exist_ok=True)
 
     def _on_step(self) -> bool:
         """
@@ -191,6 +209,14 @@ class RewardLoggingCallback(BaseCallback):
         # value = np.random.random()
         self.logger.record("step_single/rewards", reward)
         # self.logger.record("value/random", value)
+
+        # save model
+        if self.n_calls % self.save_freq == 0:
+            checkpoint_path = os.path.join(self.save_path, f"{self.name_prefix}_{self.num_timesteps}_steps.zip")
+            self.model.save(checkpoint_path)
+            if self.verbose > 0:
+                print(f"Saving model checkpoint to {checkpoint_path} at step {self.num_timesteps}")
+
         return True
 
 
@@ -238,6 +264,6 @@ if __name__ == '__main__':
     tensorboard_log="/home/hou63/pj2/Nematic_RL/logs")
 
     tic = time.time()
-    model.learn(total_timesteps=24, callback=RewardLoggingCallback())
+    model.learn(total_timesteps=24, callback=MyCallback())
     toc = time.time()
     print('Time cost: ', toc - tic)
