@@ -52,7 +52,7 @@ class ActiveNematicEnv(gym.Env):
         print('Pre iteration done.')
         
     def reset(self, seed=1234):
-        print('Reseting')
+        # print('Reseting')
         self.solver.step = 0
         if self.random_flag:
             # 重置仿真数据到初始状态，并返回初始状态
@@ -101,7 +101,7 @@ class ActiveNematicEnv(gym.Env):
         return light_matrix
 
     def step(self, action):
-        print('====steping===')
+        # print('====steping===')
         # 根据action更新active stress field
         light_matrix = self._action2light(action)
         new_datas, done_flag = self.solver.kinetic(*self.simulation_data.getter(), light_matrix)
@@ -137,7 +137,7 @@ class ActiveNematicEnv(gym.Env):
         state = self.conv(state).detach().cpu().numpy()
         state = (state - state.min()) / (state.max() - state.min())
         state = (state * 255).astype(np.uint8)
-        return state # here state is 32x4x4
+        return state # here state
 
     def _calculate_reward(self):
         # reward according S matrix
@@ -147,13 +147,13 @@ class ActiveNematicEnv(gym.Env):
         # S is a matrix where zero if defect is present
         # Thus maximize S
         reward = S.mean().item()
-        print(reward)
+        # print(reward)
         return reward
     
     def _check_terminated(self, done_flag):
-        print('Checking terminated: ', done_flag)
-        if done_flag:
-            self.solver.step = 0
+        # print('Checking terminated: ', done_flag)
+        # if done_flag:
+        #     self.solver.step = 0
         # 检查是否达到终止条件
         return done_flag
 

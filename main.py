@@ -30,8 +30,8 @@ flow_params = {
 simu_params = {
     'dt': 0.0004,
     'seed': 1234,
-    'inner_steps': 6,
-    'outer_steps': 2
+    'inner_steps': 160,
+    'outer_steps': 64
 }
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
@@ -51,10 +51,10 @@ env = ActiveNematicEnv(solver_paras, solver=solver,
                         simulation_data=simulation_data, device=device,
                         data_path=data_path)
 
-check_env(env)
+# check_env(env)
 # # 使用PPO算法进行强化学习
-# model = PPO(ActorCriticCnnPolicy, env, verbose=1, device=device)
-# model.learn(total_timesteps=20)
+model = PPO(ActorCriticCnnPolicy, env, verbose=1, device=device, n_steps=4)
+model.learn(total_timesteps=128)
 
 # # 关闭环境
 # env.close()

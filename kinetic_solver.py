@@ -356,10 +356,19 @@ class KineticSolver(object):
         # the region under control multiplies by matrix action
         # put action to device
         action = torch.tensor(action, dtype=torch.float64, device=self.device)
-        for s_h in [s11_h, s12_h, s21_h, s22_h]:
-            s = torch.real(torch.fft.ifft2(s_h))
-            s = s * action
-            s_h = torch.fft.fft2(s)
+        # for s_h in [s11_h, s12_h, s21_h, s22_h]:
+        #     s = torch.real(torch.fft.ifft2(s_h))
+        #     s = s * action
+        #     s_h = torch.fft.fft2(s)
+        s11 = torch.real(torch.fft.ifft2(s11_h)) * action
+        s12 = torch.real(torch.fft.ifft2(s12_h)) * action
+        s21 = torch.real(torch.fft.ifft2(s21_h)) * action
+        s22 = torch.real(torch.fft.ifft2(s22_h)) * action
+        s11_h = torch.fft.fft2(s11)
+        s12_h = torch.fft.fft2(s12)
+        s21_h = torch.fft.fft2(s21)
+        s22_h = torch.fft.fft2(s22)
+
         return s11_h, s12_h, s21_h, s22_h
 
     # the actual loop
@@ -384,7 +393,7 @@ class KineticSolver(object):
 
         self.step += 1
         # print self.step and self.outer_steps
-        print(f'Step {self.step} of {self.outer_steps} done.')
+        # print(f'Step {self.step} of {self.outer_steps} done.')
 
         # vars.setter(psi_h, psim1_h, u_hat, v_hat, Bm1_h)
         return (psi_h, psim1_h, u_hat, v_hat, Bm1_h), (self.step==self.outer_steps)
