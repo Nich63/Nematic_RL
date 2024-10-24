@@ -3,6 +3,7 @@ from gymnasium import spaces
 import numpy as np
 import torch
 import torch.nn as nn
+import time
 
 from kinetic_solver import KineticSolver, KineticData
 from stable_baselines3 import PPO
@@ -16,7 +17,7 @@ from stable_baselines3.common.policies import ActorCriticCnnPolicy
 # 定义强化学习环境
 class ActiveNematicEnv(gym.Env):
     def __init__(self, solver_paras, seed=1234, random=True, device='cuda:0',
-                 solver=None, simulation_data=None, data_path=None):
+                 solver=None, simulation_data=None, data_path=None, intensity=5):
         super(ActiveNematicEnv, self).__init__()
         
         if solver is None:
@@ -47,6 +48,7 @@ class ActiveNematicEnv(gym.Env):
             self.simulation_data = simulation_data
         self.data_path = data_path 
 
+        self.intensity = intensity
 
         self.conv = DownSampleConv().to(device)
         print('Pre iteration done.')
@@ -67,38 +69,45 @@ class ActiveNematicEnv(gym.Env):
 
     def _action2light(self, action, grid_size=256):
 
-        x_center = int((action[0]+1)/2 * grid_size)   # 椭圆中心x坐标
-        y_center = int((action[1]+1)/2 * grid_size)   # 椭圆中心y坐标
-        a = (action[2]+1)/2 * grid_size / 2                # 长轴，假设范围是 [10, 60]
-        b = (action[3]+1)/2 * grid_size / 2                # 短轴，假设范围是 [5, 35]
-        theta = (action[4]+1)/2 * 2 * np.pi           # 方向角范围 [0, 2π]
-        intensity = (action[5]+1)/2 * 4 + 1           # 光照强度范围 [1, 5]
+        # 1. 计算椭圆的参数
+        x_center = int((action[0] + 1) / 2 * grid_size)  # 椭圆平移后的中心x坐标
+        y_center = int((action[1] + 1) / 2 * grid_size)  # 椭圆平移后的中心y坐标
+        a = (action[2] + 1) / 2 * grid_size / 2          # 长轴，假设范围是 [10, 60]
+        b = (action[3] + 1) / 2 * grid_size / 2          # 短轴，假设范围是 [5, 35]
+        theta = (action[4] + 1) / 2 * 2 * np.pi          # 方向角范围 [0, 2π]
+        intensity = (action[5] + 1) / 2 * self.intensity     # 光照强度范围 [0, intensity]
 
+        # 2. 构建网格坐标，首先以中心为原点放置椭圆
         y, x = np.ogrid[:grid_size, :grid_size]
-        
+        x_shifted = x - grid_size // 2  # 椭圆初始位置在中心，平移到正中间
+        y_shifted = y - grid_size // 2
+
         # 3. 旋转椭圆的角度变换
         cos_theta = np.cos(theta)
         sin_theta = np.sin(theta)
-        
-        # 将坐标平移到椭圆中心
-        x_shifted = x - x_center
-        y_shifted = y - y_center
         
         # 旋转后的坐标
         x_rotated = x_shifted * cos_theta + y_shifted * sin_theta
         y_rotated = -x_shifted * sin_theta + y_shifted * cos_theta
         
         # 4. 椭圆方程 (x_rotated / a)^2 + (y_rotated / b)^2 <= 1 用于定义椭圆内的区域
-        ellipse_mask = (x_rotated / (a + 1e-6))**2 + (y_rotated / (b+ 1e-6))**2 <= 1
+        ellipse_mask = (x_rotated / (a + 1e-6))**2 + (y_rotated / (b + 1e-6))**2 <= 1
 
         # 5. 创建光照矩阵，初始值都设为1，表示椭圆外部区域
         light_matrix = np.ones((grid_size, grid_size))
 
-        # 6. 渐变效果 - 根据椭圆边缘距离生成，椭圆内从1到1.5渐变
-        distance = np.sqrt((x_rotated / (a + 1e-6))**2 + (y_rotated / (b+ 1e-6))**2)
-        light_matrix = np.where(ellipse_mask, intensity - (intensity-1) * distance, light_matrix)
+        # 6. 渐变效果 - 根据椭圆边缘距离生成，椭圆内从1到指定强度渐变
+        distance = np.sqrt((x_rotated / (a + 1e-6))**2 + (y_rotated / (b + 1e-6))**2)
+        light_matrix_centered = np.where(ellipse_mask, intensity - (intensity - 1) * distance, light_matrix)
 
-        return light_matrix
+        # 7. 将光照矩阵平移到指定的中心位置
+        x_translation = (x_center - grid_size // 2) % grid_size
+        y_translation = (y_center - grid_size // 2) % grid_size
+
+        # 8. 使用 roll 函数将矩阵平移并处理周期性边界条件
+        light_matrix_shifted = np.roll(light_matrix_centered, shift=(y_translation, x_translation), axis=(0, 1))
+
+        return light_matrix_shifted
 
     def step(self, action):
         # print('====steping===')
@@ -112,6 +121,11 @@ class ActiveNematicEnv(gym.Env):
         # 计算奖励和终止条件
         reward = self._calculate_reward()
         terminated = self._check_terminated(done_flag)
+
+        # check if nan in reward
+        if np.isnan(reward):
+            print('Nan in reward')
+            terminated = True
         
         # 返回下一状态（降维后的）和其他信息
         next_state = self._convolutional_reduce()
@@ -157,6 +171,29 @@ class ActiveNematicEnv(gym.Env):
         # 检查是否达到终止条件
         return done_flag
 
+from stable_baselines3.common.callbacks import BaseCallback
+import numpy as np
+
+class RewardLoggingCallback(BaseCallback):
+    """
+    自定义回调，用于记录每一步的奖励并保存到 TensorBoard
+    """
+    def __init__(self, verbose=0):
+        super().__init__(verbose)
+
+    def _on_step(self) -> bool:
+        """
+        每一步环境交互时调用
+        """
+        reward = self.locals['rewards']  # 从环境中获取当前的奖励
+        reward = reward[0]
+        # 记录当前步骤的奖励
+        # value = np.random.random()
+        self.logger.record("step_single/rewards", reward)
+        # self.logger.record("value/random", value)
+        return True
+
+
 if __name__ == '__main__':
     # 初始化物理仿真器
     geo_params = {
@@ -175,19 +212,32 @@ if __name__ == '__main__':
     simu_params = {
         'dt': 0.0004,
         'seed': 1234,
-        'inner_steps': 6,
-        'outer_steps': 2
+        'inner_steps': 8,
+        'outer_steps': 16
     }
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
     solver_paras = (geo_params, flow_params, simu_params)
-    env = ActiveNematicEnv(solver_paras, device=device)
-    # print(env.action_space[0])
-    
-    check_env(env)
-    # 使用PPO算法进行强化学习
-    # model = PPO(ActorCriticCnnPolicy, env, verbose=1, device=device)
-    # model.learn(total_timesteps=10000)
-    
-    # # 关闭环境
-    # env.close()
+    # env = ActiveNematicEnv(solver_paras, device=device)
+
+    # solver_paras = (geo_params, flow_params, simu_params)
+
+    solver = KineticSolver(*solver_paras, device=device)
+    data_path = '/home/hou63/pj2/Nematic_RL/datas/simulation_data_test.pkl'
+    # simulation_data = KineticData(*solver.initialize2_pytorch(seed=918), solver.simu_args)
+    simulation_data = KineticData.loader(data_path)
+    # simulation_data = solver.preloop_kinetic(simulation_data, num_itr=32000)
+    print(simulation_data)
+    simulation_data = simulation_data.loader(data_path)
+    env = ActiveNematicEnv(solver_paras, solver=solver,
+                            simulation_data=simulation_data, device=device,
+                            data_path=data_path, intensity=10)
+    model = PPO(
+    ActorCriticCnnPolicy, env, verbose=1, device=device,
+    n_steps=4, batch_size=2,
+    tensorboard_log="/home/hou63/pj2/Nematic_RL/logs")
+
+    tic = time.time()
+    model.learn(total_timesteps=24, callback=RewardLoggingCallback())
+    toc = time.time()
+    print('Time cost: ', toc - tic)
