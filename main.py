@@ -64,12 +64,13 @@ env = ActiveNematicEnv(solver_paras, solver=solver,
 model = PPO(
     ActorCriticCnnPolicy, env, verbose=1, device=device,
     n_steps=256, batch_size=32,
-    tensorboard_log="/home/hou63/pj2/Nematic_RL/logs")
+    tensorboard_log="/home/hou63/pj2/Nematic_RL/logs_2")
 
-save_path = '/home/hou63/pj2/Nematic_RL/log_model/' 
+name_prefix = 'lights_on_model'
 
 # tic = time.time()
-model.learn(total_timesteps=6400, callback=MyCallback(save_path),
+model.learn(total_timesteps=31000,
+            callback=MyCallback(name_prefix=name_prefix, save_freq=10000),
             progress_bar=True)
 # toc = time.time()
 # print('Time cost: ', toc - tic)

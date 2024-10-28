@@ -192,12 +192,10 @@ class MyCallback(BaseCallback):
     自定义回调，用于记录每一步的奖励并保存到 TensorBoard
     """
     # TODO: 断点重续
-    def __init__(self, save_path, verbose=0, name_prefix: str = 'rl_model', save_freq=2000):
+    def __init__(self, verbose=0, name_prefix: str = 'rl_model', save_freq=2000):
         super().__init__(verbose)
         self.save_freq = save_freq
-        self.save_path = save_path
         self.name_prefix = name_prefix
-        os.makedirs(save_path, exist_ok=True)
 
     def _on_step(self) -> bool:
         """
@@ -212,7 +210,7 @@ class MyCallback(BaseCallback):
 
         # save model
         if self.n_calls % self.save_freq == 0:
-            checkpoint_path = os.path.join(self.save_path, f"{self.name_prefix}_{self.num_timesteps}_steps.zip")
+            checkpoint_path = os.path.join(self.logger.dir, f"{self.name_prefix}_{self.num_timesteps}_steps.zip")
             self.model.save(checkpoint_path)
             if self.verbose > 0:
                 print(f"Saving model checkpoint to {checkpoint_path} at step {self.num_timesteps}")
