@@ -5,6 +5,8 @@ import math
 import matplotlib.pyplot as plt
 import pickle
 
+import utils.defects as defects
+
 class KineticData(object):
     '''
         Storge class for kinetic solver, note the vars are in frequency domain.
@@ -490,13 +492,15 @@ class KineticSolver(object):
         d22 = 0.5 * (torch.real(psi_h0) - torch.real(psi_h2))
         return d11, d12, d22
 
-    def visualize_flow_field(self, data):
+    @staticmethod
+    def visualize_flow_field(data, ax):
         d11, d12 = data.get_D()
         d11 = d11.cpu().data.numpy()
         d12 = d12.cpu().data.numpy()
-        theta = 0.5 * np.arctan2(2*d12, 2*d11-1)
+        theta = defects.theta_cal(d11, d12)
+        defects_arr = defects.calculate_defects(theta)
 
-        pass
+        defects.plot_defects(defects_arr, theta, ax)
 
     # def loop_kinetic(self, psi_h, psim1_h, u_h, v_h, Bm1_h):
     #     arr_ = (psi_h, psim1_h, u_h, v_h, Bm1_h)

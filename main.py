@@ -41,7 +41,7 @@ simu_params = {
     'inner_steps': 8,
     'outer_steps': 6400
 }
-device = 'cuda:1' if torch.cuda.is_available() else 'cpu'
+device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
 solver_paras = (geo_params, flow_params, simu_params)
 # env = ActiveNematicEnv(solver_paras, device=device)
@@ -63,14 +63,17 @@ env = ActiveNematicEnv(solver_paras, solver=solver,
 # # 使用PPO算法进行强化学习
 model = PPO(
     ActorCriticCnnPolicy, env, verbose=1, device=device,
-    n_steps=256, batch_size=32,
+    n_steps=640, batch_size=64,
     tensorboard_log="/home/hou63/pj2/Nematic_RL/logs_2")
 
 name_prefix = 'lights_on_model'
 
 # tic = time.time()
-model.learn(total_timesteps=31000,
-            callback=MyCallback(name_prefix=name_prefix, save_freq=10000),
+model.learn(total_timesteps=32000,
+            callback=MyCallback(
+                name_prefix=name_prefix,
+                save_freq=10000,
+                env=env),
             progress_bar=True)
 # toc = time.time()
 # print('Time cost: ', toc - tic)

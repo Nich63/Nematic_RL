@@ -41,20 +41,18 @@ def calculate_defects(theta_field, grid_size=1):
                     defects.append((i, j, defect_type))
         return defects
 
-def plot_defects(defects, theta):
+def plot_defects(defects, theta, ax0):
     cost = np.cos(theta)
     sint = np.sin(theta)
-    fig, axs = plt.subplots(1, 2, figsize=(14,14))
-    axs[0].streamplot(np.arange(0, theta.shape[0]), np.arange(0, theta.shape[1]),
+    ax0.streamplot(np.arange(0, theta.shape[0]), np.arange(0, theta.shape[1]),
                     cost, sint, arrowsize=0.5, color='r',
                     density=4, linewidth=0.5)
-    axs[0].set_aspect('equal')
+    ax0.set_aspect('equal')
     for defect in defects:
-        i, j, defect_type, _ = defect
+        i, j, defect_type = defect
         color = 'r' if defect_type > 0 else 'b'
-        axs[0].scatter(j, i, color=color)
-    axs[1].imshow(theta, cmap='viridis', origin='lower')
-    return fig
+        ax0.scatter(j, i, color=color)
+    return ax0
 
 def find_neighboor(ind, pts, eps, shape):
     shape_0, shape_1 = shape
@@ -168,6 +166,7 @@ def S_cal(d11, d12):
     q12 = d12
     S = 2 * np.sqrt(q11**2 + q12**2)
     return S
+
 
 if __name__ == "__main__":
     PATH = '/home/hou63/pj1/code/test1/reference_data_D_20.0_zeta_2_seed918_.mat'

@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import time
 import os
+import matplotlib.pyplot as plt
 
 from kinetic_solver import KineticSolver, KineticData
 from stable_baselines3 import PPO
@@ -12,7 +13,7 @@ from utils.model import DownSampleConv
 from utils.defects import theta_cal, S_cal
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.policies import ActorCriticCnnPolicy
-
+from torch.utils.tensorboard import SummaryWriter
 
 
 # 定义强化学习环境
@@ -70,47 +71,7 @@ class ActiveNematicEnv(gym.Env):
         # 返回降维后的初始状态
         return self._convolutional_reduce(), {}
 
-    def _action2light(self, action, grid_size=256):
 
-        # 1. 计算椭圆的参数
-        x_center = int((action[0] + 1) / 2 * grid_size)  # 椭圆平移后的中心x坐标
-        y_center = int((action[1] + 1) / 2 * grid_size)  # 椭圆平移后的中心y坐标
-        a = (action[2] + 1) / 2 * grid_size / 2          # 长轴，假设范围是 [10, 60]
-        b = (action[3] + 1) / 2 * grid_size / 2          # 短轴，假设范围是 [5, 35]
-        theta = (action[4] + 1) / 2 * 2 * np.pi          # 方向角范围 [0, 2π]
-        intensity = (action[5] + 1) / 2 * self.intensity     # 光照强度范围 [0, intensity]
-
-        # 2. 构建网格坐标，首先以中心为原点放置椭圆
-        y, x = np.ogrid[:grid_size, :grid_size]
-        x_shifted = x - grid_size // 2  # 椭圆初始位置在中心，平移到正中间
-        y_shifted = y - grid_size // 2
-
-        # 3. 旋转椭圆的角度变换
-        cos_theta = np.cos(theta)
-        sin_theta = np.sin(theta)
-        
-        # 旋转后的坐标
-        x_rotated = x_shifted * cos_theta + y_shifted * sin_theta
-        y_rotated = -x_shifted * sin_theta + y_shifted * cos_theta
-        
-        # 4. 椭圆方程 (x_rotated / a)^2 + (y_rotated / b)^2 <= 1 用于定义椭圆内的区域
-        ellipse_mask = (x_rotated / (a + 1e-6))**2 + (y_rotated / (b + 1e-6))**2 <= 1
-
-        # 5. 创建光照矩阵，初始值都设为1，表示椭圆外部区域
-        light_matrix = np.ones((grid_size, grid_size))
-
-        # 6. 渐变效果 - 根据椭圆边缘距离生成，椭圆内从1到指定强度渐变
-        distance = np.sqrt((x_rotated / (a + 1e-6))**2 + (y_rotated / (b + 1e-6))**2)
-        light_matrix_centered = np.where(ellipse_mask, intensity - (intensity - 1) * distance, light_matrix)
-
-        # 7. 将光照矩阵平移到指定的中心位置
-        x_translation = (x_center - grid_size // 2) % grid_size
-        y_translation = (y_center - grid_size // 2) % grid_size
-
-        # 8. 使用 roll 函数将矩阵平移并处理周期性边界条件
-        light_matrix_shifted = np.roll(light_matrix_centered, shift=(y_translation, x_translation), axis=(0, 1))
-        # light_matrix_shifted = np.ones((grid_size, grid_size))
-        return light_matrix_shifted
 
     @staticmethod
     def contains_nan(tuple_of_arrays):
@@ -124,7 +85,7 @@ class ActiveNematicEnv(gym.Env):
         info = {}
         # print('====steping===')
         # 根据action更新active stress field
-        light_matrix = self._action2light(action)
+        light_matrix = self._action2light(self.intensity, action)
         new_datas, done_flag = self.solver.kinetic(*self.simulation_data.getter(), light_matrix)
         
         # 更新仿真数据
@@ -139,6 +100,7 @@ class ActiveNematicEnv(gym.Env):
             print('Nan encontered')
             terminated = True
             info['error'] = "NaN encountered"
+            reward = -100
         
         # 返回下一状态（降维后的）和其他信息
         next_state = self._convolutional_reduce()
@@ -151,6 +113,10 @@ class ActiveNematicEnv(gym.Env):
     def render(self, mode='human'):
         # 调用solver的可视化方法
         self.solver.visualize_flow_field(self.simulation_data)
+
+    def _my_render(self, ax):
+        # 调用solver的可视化方法
+        self.solver.visualize_flow_field(self.simulation_data, ax)
 
     def close(self):
         # 关闭并清理资源
@@ -184,6 +150,49 @@ class ActiveNematicEnv(gym.Env):
         # 检查是否达到终止条件
         return done_flag
 
+    @staticmethod
+    def _action2light(self_intensity, action, grid_size=256):
+
+        # 1. 计算椭圆的参数
+        x_center = int((action[0] + 1) / 2 * grid_size)  # 椭圆平移后的中心x坐标
+        y_center = int((action[1] + 1) / 2 * grid_size)  # 椭圆平移后的中心y坐标
+        a = (action[2] + 1) / 2 * grid_size / 2          # 长轴，假设范围是 [10, 60]
+        b = (action[3] + 1) / 2 * grid_size / 2          # 短轴，假设范围是 [5, 35]
+        theta = (action[4] + 1) / 2 * 2 * np.pi          # 方向角范围 [0, 2π]
+        intensity = (action[5] + 1) / 2 * self_intensity     # 光照强度范围 [0, intensity]
+
+        # 2. 构建网格坐标，首先以中心为原点放置椭圆
+        y, x = np.ogrid[:grid_size, :grid_size]
+        x_shifted = x - grid_size // 2  # 椭圆初始位置在中心，平移到正中间
+        y_shifted = y - grid_size // 2
+
+        # 3. 旋转椭圆的角度变换
+        cos_theta = np.cos(theta)
+        sin_theta = np.sin(theta)
+        
+        # 旋转后的坐标
+        x_rotated = x_shifted * cos_theta + y_shifted * sin_theta
+        y_rotated = -x_shifted * sin_theta + y_shifted * cos_theta
+        
+        # 4. 椭圆方程 (x_rotated / a)^2 + (y_rotated / b)^2 <= 1 用于定义椭圆内的区域
+        ellipse_mask = (x_rotated / (a + 1e-6))**2 + (y_rotated / (b + 1e-6))**2 <= 1
+
+        # 5. 创建光照矩阵，初始值都设为1，表示椭圆外部区域
+        light_matrix = np.ones((grid_size, grid_size))
+
+        # 6. 渐变效果 - 根据椭圆边缘距离生成，椭圆内从1到指定强度渐变
+        distance = np.sqrt((x_rotated / (a + 1e-6))**2 + (y_rotated / (b + 1e-6))**2)
+        light_matrix_centered = np.where(ellipse_mask, intensity - (intensity - 1) * distance, light_matrix)
+
+        # 7. 将光照矩阵平移到指定的中心位置
+        x_translation = (x_center - grid_size // 2) % grid_size
+        y_translation = (y_center - grid_size // 2) % grid_size
+
+        # 8. 使用 roll 函数将矩阵平移并处理周期性边界条件
+        light_matrix_shifted = np.roll(light_matrix_centered, shift=(y_translation, x_translation), axis=(0, 1))
+        # light_matrix_shifted = np.ones((grid_size, grid_size))
+        return light_matrix_shifted
+
 from stable_baselines3.common.callbacks import BaseCallback
 import numpy as np
 
@@ -192,10 +201,31 @@ class MyCallback(BaseCallback):
     自定义回调，用于记录每一步的奖励并保存到 TensorBoard
     """
     # TODO: 断点重续
-    def __init__(self, verbose=0, name_prefix: str = 'rl_model', save_freq=2000):
+    def __init__(self, verbose=0,
+                name_prefix: str = 'rl_model',
+                save_freq=2000,
+                plt_freq=5000,
+                env=None):
         super().__init__(verbose)
         self.save_freq = save_freq
         self.name_prefix = name_prefix
+        self.plt_freq = plt_freq
+        self.env = env
+        self.writer = None
+        self.default_log_path = "/home/hou63/pj2/Nematic_RL/logs_2/default"
+        self.interval = env.solver.inner_steps
+        self.plot_flag = False
+        self.step_counter = 0
+        self.plot_counter = 0
+        self.num_plot = 8
+
+    def _on_training_start(self) -> None:
+        if self.logger.dir is not None:
+            print("Logger directory set. Using logger directory.")
+            self.writer = SummaryWriter(self.logger.dir)
+        else:
+            print("Logger directory not set. Using default log directory.")
+            self.writer = SummaryWriter(self.default_log_path)
 
     def _on_step(self) -> bool:
         """
@@ -207,7 +237,7 @@ class MyCallback(BaseCallback):
         # value = np.random.random()
         self.logger.record("step_single/rewards", reward)
         # self.logger.record("value/random", value)
-
+    
         # save model
         if self.n_calls % self.save_freq == 0:
             checkpoint_path = os.path.join(self.logger.dir, f"{self.name_prefix}_{self.num_timesteps}_steps.zip")
@@ -215,7 +245,40 @@ class MyCallback(BaseCallback):
             if self.verbose > 0:
                 print(f"Saving model checkpoint to {checkpoint_path} at step {self.num_timesteps}")
 
+        # # plot and save
+        # if self.n_calls % self.plt_freq == 0 or self.n_calls == 1:
+        #     if self.step_counter % self.interval == 0:
+        #         fig = self.plot()
+        #         self.writer.add_figure('flow_field', fig, global_step=self.num_timesteps)
+        #         plt.close(fig)
+        #     self.step_counter += 1
+
+        # plot
+        if self.n_calls % self.plt_freq == 0 or self.n_calls == 1:
+            self.plot_flag = True
+        if self.plot_flag:
+            if self.step_counter % self.interval == 0:
+                fig = self.plot()
+                self.writer.add_figure('flow_field', fig, global_step=self.num_timesteps)
+                plt.close(fig)
+                self.plot_counter += 1
+            self.step_counter += 1
+
+        if self.plot_counter >= self.num_plot:
+            self.plot_flag = False
+            self.plot_counter = 0
+            self.step_counter = 0
+        
         return True
+
+    def plot(self):
+        fig, ax = plt.subplots(1, 1, figsize=(5, 5))
+        self.env._my_render(ax)
+        ax.imshow(
+            self.env._action2light(self.env.intensity,
+                                   self.locals['actions'][0]),
+                                   cmap='gray', alpha=0.5)
+        return fig
 
 
 if __name__ == '__main__':
