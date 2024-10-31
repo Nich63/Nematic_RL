@@ -71,8 +71,6 @@ class ActiveNematicEnv(gym.Env):
         # 返回降维后的初始状态
         return self._convolutional_reduce(), {}
 
-
-
     @staticmethod
     def contains_nan(tuple_of_arrays):
         for i, array in enumerate(tuple_of_arrays):
@@ -85,6 +83,7 @@ class ActiveNematicEnv(gym.Env):
         info = {}
         # print('====steping===')
         # 根据action更新active stress field
+        action = np.clip(action, -1, 1)
         light_matrix = self._action2light(self.intensity, action)
         new_datas, done_flag = self.solver.kinetic(*self.simulation_data.getter(), light_matrix)
         
@@ -99,8 +98,9 @@ class ActiveNematicEnv(gym.Env):
         if self.contains_nan(new_datas):
             print('Nan encontered')
             terminated = True
-            info['error'] = "NaN encountered"
+            info['error'] = "NaN encountered, reset environment."
             reward = -100
+            return self.reset(), reward, terminated, info
         
         # 返回下一状态（降维后的）和其他信息
         next_state = self._convolutional_reduce()
@@ -190,7 +190,7 @@ class ActiveNematicEnv(gym.Env):
 
         # 8. 使用 roll 函数将矩阵平移并处理周期性边界条件
         light_matrix_shifted = np.roll(light_matrix_centered, shift=(y_translation, x_translation), axis=(0, 1))
-        # light_matrix_shifted = np.ones((grid_size, grid_size))
+        light_matrix_shifted = np.ones((grid_size, grid_size))
         return light_matrix_shifted
 
 from stable_baselines3.common.callbacks import BaseCallback
@@ -204,20 +204,22 @@ class MyCallback(BaseCallback):
     def __init__(self, verbose=0,
                 name_prefix: str = 'rl_model',
                 save_freq=2000,
-                plt_freq=5000,
+                plot_freq=5000,
                 env=None):
         super().__init__(verbose)
+        
         self.save_freq = save_freq
         self.name_prefix = name_prefix
-        self.plt_freq = plt_freq
         self.env = env
         self.writer = None
         self.default_log_path = "/home/hou63/pj2/Nematic_RL/logs_2/default"
+
+        self.plot_freq = plot_freq
         self.interval = env.solver.inner_steps
         self.plot_flag = False
         self.step_counter = 0
         self.plot_counter = 0
-        self.num_plot = 8
+        self.num_plot = 10
 
     def _on_training_start(self) -> None:
         if self.logger.dir is not None:
@@ -240,27 +242,20 @@ class MyCallback(BaseCallback):
     
         # save model
         if self.n_calls % self.save_freq == 0:
-            checkpoint_path = os.path.join(self.logger.dir, f"{self.name_prefix}_{self.num_timesteps}_steps.zip")
+            checkpoint_path = os.path.join(self.logger.dir, f"{self.name_prefix}.zip")
             self.model.save(checkpoint_path)
             if self.verbose > 0:
                 print(f"Saving model checkpoint to {checkpoint_path} at step {self.num_timesteps}")
 
-        # # plot and save
-        # if self.n_calls % self.plt_freq == 0 or self.n_calls == 1:
-        #     if self.step_counter % self.interval == 0:
-        #         fig = self.plot()
-        #         self.writer.add_figure('flow_field', fig, global_step=self.num_timesteps)
-        #         plt.close(fig)
-        #     self.step_counter += 1
-
         # plot
-        if self.n_calls % self.plt_freq == 0 or self.n_calls == 1:
+        if self.n_calls % self.plot_freq == 0 or self.n_calls == 1:
             self.plot_flag = True
         if self.plot_flag:
             if self.step_counter % self.interval == 0:
                 fig = self.plot()
                 self.writer.add_figure('flow_field', fig, global_step=self.num_timesteps)
                 plt.close(fig)
+                print('Plotting t = ', self.num_timesteps)
                 self.plot_counter += 1
             self.step_counter += 1
 
@@ -274,10 +269,12 @@ class MyCallback(BaseCallback):
     def plot(self):
         fig, ax = plt.subplots(1, 1, figsize=(5, 5))
         self.env._my_render(ax)
-        ax.imshow(
-            self.env._action2light(self.env.intensity,
-                                   self.locals['actions'][0]),
-                                   cmap='gray', alpha=0.5)
+
+        fig.colorbar(ax.imshow(self.env._action2light(self.env.intensity,
+                                      self.locals['actions'][0]),
+                                      cmap='gray', alpha=0.5))
+        ax.set_title(str(self.locals['actions'][0]))
+        # plt.colorbar()
         return fig
 
 

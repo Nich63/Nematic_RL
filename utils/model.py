@@ -30,6 +30,8 @@ class DownSampleConv(nn.Module):
         return x
 
 
+
+
 if __name__ == '__main__':
     conv = DownSampleConv()
     input = (torch.randn(256, 256), torch.randn(256, 256))
