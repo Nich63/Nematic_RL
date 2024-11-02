@@ -190,7 +190,7 @@ class ActiveNematicEnv(gym.Env):
 
         # 8. 使用 roll 函数将矩阵平移并处理周期性边界条件
         light_matrix_shifted = np.roll(light_matrix_centered, shift=(y_translation, x_translation), axis=(0, 1))
-        light_matrix_shifted = np.ones((grid_size, grid_size))
+        # light_matrix_shifted = np.ones((grid_size, grid_size))
         return light_matrix_shifted
 
 from stable_baselines3.common.callbacks import BaseCallback
@@ -237,8 +237,12 @@ class MyCallback(BaseCallback):
         reward = reward[0]
         # 记录当前步骤的奖励
         # value = np.random.random()
-        self.logger.record("step_single/rewards", reward)
+        if self.n_calls <= 10000:
+            self.writer.add_scalar("step_single/reward", reward, global_step=self.num_timesteps)
         # self.logger.record("value/random", value)
+
+        if self.n_calls == 2000:
+            self.env.simulation_data.dumper('/home/hou63/pj2/Nematic_RL/datas/data_2000.pkl')
     
         # save model
         if self.n_calls % self.save_freq == 0:
