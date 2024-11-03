@@ -1,0 +1,133 @@
+nohup: ignoring input
+ dx_  0.0390625  dth_  0.02454369260617026  dt  0.0004
+<kinetic_solver.KineticData object at 0x7cf98dbd2820>
+Pre iteration done.
+Using cuda:1 device
+Wrapping the env with a `Monitor` wrapper
+Wrapping the env in a DummyVecEnv.
+Logging to /home/hou63/pj2/Nematic_RL/logs_2/PPO_8
+Logger directory set. Using logger directory.
+Plotting t =  1
+Plotting t =  11
+Plotting t =  21
+Plotting t =  31
+Plotting t =  41
+Plotting t =  51
+Plotting t =  61
+Plotting t =  71
+Plotting t =  81
+Plotting t =  91
+----------------------------------
+| step_single/       |           |
+|    rewards         | 0.7549471 |
+| time/              |           |
+|    fps             | 1         |
+|    iterations      | 1         |
+|    time_elapsed    | 1949      |
+|    total_timesteps | 2000      |
+----------------------------------
+-----------------------------------------
+| step_single/            |             |
+|    rewards              | 0.75777483  |
+| time/                   |             |
+|    fps                  | 1           |
+|    iterations           | 2           |
+|    time_elapsed         | 3853        |
+|    total_timesteps      | 4000        |
+| train/                  |             |
+|    approx_kl            | 0.014727049 |
+|    clip_fraction        | 0.273       |
+|    clip_range           | 0.2         |
+|    entropy_loss         | -8.52       |
+|    explained_variance   | -0.0154     |
+|    learning_rate        | 0.0003      |
+|    loss                 | 0.141       |
+|    n_updates            | 10          |
+|    policy_gradient_loss | 0.00321     |
+|    std                  | 1           |
+|    value_loss           | 6.79        |
+-----------------------------------------
+Plotting t =  5000
+Plotting t =  5010
+Plotting t =  5020
+Plotting t =  5030
+Plotting t =  5040
+Plotting t =  5050
+Plotting t =  5060
+Plotting t =  5070
+Plotting t =  5080
+Plotting t =  5090
+-----------------------------------------
+| rollout/                |             |
+|    ep_len_mean          | 5e+03       |
+|    ep_rew_mean          | 3.77e+03    |
+| step_single/            |             |
+|    rewards              | 0.7612441   |
+| time/                   |             |
+|    fps                  | 1           |
+|    iterations           | 3           |
+|    time_elapsed         | 5841        |
+|    total_timesteps      | 6000        |
+| train/                  |             |
+|    approx_kl            | 0.035582375 |
+|    clip_fraction        | 0.257       |
+|    clip_range           | 0.2         |
+|    entropy_loss         | -8.51       |
+|    explained_variance   | 0.691       |
+|    learning_rate        | 0.0003      |
+|    loss                 | 0.0621      |
+|    n_updates            | 20          |
+|    policy_gradient_loss | 0.00462     |
+|    std                  | 1           |
+|    value_loss           | 5.97        |
+-----------------------------------------
+-----------------------------------------
+| rollout/                |             |
+|    ep_len_mean          | 5e+03       |
+|    ep_rew_mean          | 3.77e+03    |
+| step_single/            |             |
+|    rewards              | 0.7527203   |
+| time/                   |             |
+|    fps                  | 1           |
+|    iterations           | 4           |
+|    time_elapsed         | 7773        |
+|    total_timesteps      | 8000        |
+| train/                  |             |
+|    approx_kl            | 0.021469705 |
+|    clip_fraction        | 0.347       |
+|    clip_range           | 0.2         |
+|    entropy_loss         | -8.52       |
+|    explained_variance   | 0.234       |
+|    learning_rate        | 0.0003      |
+|    loss                 | 0.795       |
+|    n_updates            | 30          |
+|    policy_gradient_loss | 0.01        |
+|    std                  | 1           |
+|    value_loss           | 4.55        |
+-----------------------------------------
+Plotting t =  10000
+-----------------------------------------
+| rollout/                |             |
+|    ep_len_mean          | 5e+03       |
+|    ep_rew_mean          | 3.78e+03    |
+| step_single/            |             |
+|    rewards              | 0.78451484  |
+| time/                   |             |
+|    fps                  | 1           |
+|    iterations           | 5           |
+|    time_elapsed         | 9734        |
+|    total_timesteps      | 10000       |
+| train/                  |             |
+|    approx_kl            | 0.012063364 |
+|    clip_fraction        | 0.326       |
+|    clip_range           | 0.2         |
+|    entropy_loss         | -8.52       |
+|    explained_variance   | 0.755       |
+|    learning_rate        | 0.0003      |
+|    loss                 | 0.136       |
+|    n_updates            | 40          |
+|    policy_gradient_loss | 0.0089      |
+|    std                  | 1           |
+|    value_loss           | 4.24        |
+-----------------------------------------
+ 100% ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 10,000/10,000  [ 2:42:12 < 0:00:00 , 1 it/s ]

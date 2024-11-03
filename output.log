@@ -1,0 +1,253 @@
+nohup: ignoring input
+ dx_  0.0390625  dth_  0.02454369260617026  dt  0.0004
+<kinetic_solver.KineticData object at 0x7fae25dd2820>
+Pre iteration done.
+Using cuda:0 device
+Wrapping the env with a `Monitor` wrapper
+Wrapping the env in a DummyVecEnv.
+Logging to /home/hou63/pj2/Nematic_RL/logs_2/PPO_11
+Logger directory set. Using logger directory.
+Plotting t =  1
+Plotting t =  11
+Plotting t =  21
+Plotting t =  31
+Plotting t =  41
+Plotting t =  51
+Plotting t =  61
+Plotting t =  71
+Plotting t =  81
+Plotting t =  91
+-----------------------------
+| time/              |      |
+|    fps             | 0    |
+|    iterations      | 1    |
+|    time_elapsed    | 2331 |
+|    total_timesteps | 2000 |
+-----------------------------
+-----------------------------------------
+| time/                   |             |
+|    fps                  | 0           |
+|    iterations           | 2           |
+|    time_elapsed         | 4626        |
+|    total_timesteps      | 4000        |
+| train/                  |             |
+|    approx_kl            | 0.033670448 |
+|    clip_fraction        | 0.409       |
+|    clip_range           | 0.2         |
+|    entropy_loss         | -8.52       |
+|    explained_variance   | 0.00166     |
+|    learning_rate        | 0.0003      |
+|    loss                 | 0.2         |
+|    n_updates            | 10          |
+|    policy_gradient_loss | 0.0128      |
+|    std                  | 1           |
+|    value_loss           | 7.9         |
+-----------------------------------------
+Plotting t =  5000
+Plotting t =  5010
+Plotting t =  5020
+Plotting t =  5030
+Plotting t =  5040
+Plotting t =  5050
+Plotting t =  5060
+Plotting t =  5070
+Plotting t =  5080
+Plotting t =  5090
+----------------------------------------
+| rollout/                |            |
+|    ep_len_mean          | 5e+03      |
+|    ep_rew_mean          | 3.98e+03   |
+| time/                   |            |
+|    fps                  | 0          |
+|    iterations           | 3          |
+|    time_elapsed         | 7021       |
+|    total_timesteps      | 6000       |
+| train/                  |            |
+|    approx_kl            | 0.02035902 |
+|    clip_fraction        | 0.294      |
+|    clip_range           | 0.2        |
+|    entropy_loss         | -8.54      |
+|    explained_variance   | 0.543      |
+|    learning_rate        | 0.0003     |
+|    loss                 | 0.181      |
+|    n_updates            | 20         |
+|    policy_gradient_loss | 0.00765    |
+|    std                  | 1          |
+|    value_loss           | 4.58       |
+----------------------------------------
+-----------------------------------------
+| rollout/                |             |
+|    ep_len_mean          | 5e+03       |
+|    ep_rew_mean          | 3.98e+03    |
+| time/                   |             |
+|    fps                  | 0           |
+|    iterations           | 4           |
+|    time_elapsed         | 9035        |
+|    total_timesteps      | 8000        |
+| train/                  |             |
+|    approx_kl            | 0.061697144 |
+|    clip_fraction        | 0.555       |
+|    clip_range           | 0.2         |
+|    entropy_loss         | -8.55       |
+|    explained_variance   | 0.429       |
+|    learning_rate        | 0.0003      |
+|    loss                 | 0.163       |
+|    n_updates            | 30          |
+|    policy_gradient_loss | 0.0328      |
+|    std                  | 1.01        |
+|    value_loss           | 4.3         |
+-----------------------------------------
+Plotting t =  10000
+-----------------------------------------
+| rollout/                |             |
+|    ep_len_mean          | 5e+03       |
+|    ep_rew_mean          | 3.94e+03    |
+| time/                   |             |
+|    fps                  | 0           |
+|    iterations           | 5           |
+|    time_elapsed         | 11018       |
+|    total_timesteps      | 10000       |
+| train/                  |             |
+|    approx_kl            | 0.018175038 |
+|    clip_fraction        | 0.37        |
+|    clip_range           | 0.2         |
+|    entropy_loss         | -8.56       |
+|    explained_variance   | 0.681       |
+|    learning_rate        | 0.0003      |
+|    loss                 | 0.557       |
+|    n_updates            | 40          |
+|    policy_gradient_loss | 0.0212      |
+|    std                  | 1.01        |
+|    value_loss           | 5.18        |
+-----------------------------------------
+Plotting t =  10010
+Plotting t =  10020
+Plotting t =  10030
+Plotting t =  10040
+Plotting t =  10050
+Plotting t =  10060
+Plotting t =  10070
+Plotting t =  10080
+Plotting t =  10090
+----------------------------------------
+| rollout/                |            |
+|    ep_len_mean          | 5e+03      |
+|    ep_rew_mean          | 3.94e+03   |
+| time/                   |            |
+|    fps                  | 0          |
+|    iterations           | 6          |
+|    time_elapsed         | 13047      |
+|    total_timesteps      | 12000      |
+| train/                  |            |
+|    approx_kl            | 0.11350869 |
+|    clip_fraction        | 0.48       |
+|    clip_range           | 0.2        |
+|    entropy_loss         | -8.55      |
+|    explained_variance   | 0.44       |
+|    learning_rate        | 0.0003     |
+|    loss                 | 0.668      |
+|    n_updates            | 50         |
+|    policy_gradient_loss | 0.027      |
+|    std                  | 1.01       |
+|    value_loss           | 5.15       |
+----------------------------------------
+-----------------------------------------
+| rollout/                |             |
+|    ep_len_mean          | 5e+03       |
+|    ep_rew_mean          | 3.94e+03    |
+| time/                   |             |
+|    fps                  | 0           |
+|    iterations           | 7           |
+|    time_elapsed         | 15016       |
+|    total_timesteps      | 14000       |
+| train/                  |             |
+|    approx_kl            | 0.039595358 |
+|    clip_fraction        | 0.341       |
+|    clip_range           | 0.2         |
+|    entropy_loss         | -8.54       |
+|    explained_variance   | 0.821       |
+|    learning_rate        | 0.0003      |
+|    loss                 | 0.484       |
+|    n_updates            | 60          |
+|    policy_gradient_loss | 0.0159      |
+|    std                  | 1           |
+|    value_loss           | 4.1         |
+-----------------------------------------
+Plotting t =  15000
+Plotting t =  15010
+Plotting t =  15020
+Plotting t =  15030
+Plotting t =  15040
+Plotting t =  15050
+Plotting t =  15060
+Plotting t =  15070
+Plotting t =  15080
+Plotting t =  15090
+-----------------------------------------
+| rollout/                |             |
+|    ep_len_mean          | 5e+03       |
+|    ep_rew_mean          | 3.96e+03    |
+| time/                   |             |
+|    fps                  | 0           |
+|    iterations           | 8           |
+|    time_elapsed         | 17055       |
+|    total_timesteps      | 16000       |
+| train/                  |             |
+|    approx_kl            | 0.026625639 |
+|    clip_fraction        | 0.376       |
+|    clip_range           | 0.2         |
+|    entropy_loss         | -8.56       |
+|    explained_variance   | 0.674       |
+|    learning_rate        | 0.0003      |
+|    loss                 | 0.889       |
+|    n_updates            | 70          |
+|    policy_gradient_loss | 0.0191      |
+|    std                  | 1.01        |
+|    value_loss           | 3.92        |
+-----------------------------------------
+----------------------------------------
+| rollout/                |            |
+|    ep_len_mean          | 5e+03      |
+|    ep_rew_mean          | 3.96e+03   |
+| time/                   |            |
+|    fps                  | 0          |
+|    iterations           | 9          |
+|    time_elapsed         | 18910      |
+|    total_timesteps      | 18000      |
+| train/                  |            |
+|    approx_kl            | 0.01955466 |
+|    clip_fraction        | 0.504      |
+|    clip_range           | 0.2        |
+|    entropy_loss         | -8.57      |
+|    explained_variance   | 0.508      |
+|    learning_rate        | 0.0003     |
+|    loss                 | 1.04       |
+|    n_updates            | 80         |
+|    policy_gradient_loss | 0.0396     |
+|    std                  | 1.01       |
+|    value_loss           | 6.59       |
+----------------------------------------
+Plotting t =  20000
+-----------------------------------------
+| rollout/                |             |
+|    ep_len_mean          | 5e+03       |
+|    ep_rew_mean          | 3.92e+03    |
+| time/                   |             |
+|    fps                  | 0           |
+|    iterations           | 10          |
+|    time_elapsed         | 20835       |
+|    total_timesteps      | 20000       |
+| train/                  |             |
+|    approx_kl            | 0.017993044 |
+|    clip_fraction        | 0.435       |
+|    clip_range           | 0.2         |
+|    entropy_loss         | -8.58       |
+|    explained_variance   | 0.786       |
+|    learning_rate        | 0.0003      |
+|    loss                 | 0.405       |
+|    n_updates            | 90          |
+|    policy_gradient_loss | 0.0296      |
+|    std                  | 1.01        |
+|    value_loss           | 1.94        |
+-----------------------------------------
+ 100% ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 20,000/20,000  [ 5:47:14 < 0:00:00 , 1 it/s ]

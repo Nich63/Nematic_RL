@@ -1,0 +1,78 @@
+nohup: ignoring input
+ dx_  0.0390625  dth_  0.02454369260617026  dt  0.0004
+<kinetic_solver.KineticData object at 0x73e53f934820>
+Pre iteration done.
+Using cuda:1 device
+Wrapping the env with a `Monitor` wrapper
+Wrapping the env in a DummyVecEnv.
+Logging to /home/hou63/pj2/Nematic_RL/logs_2/PPO_12
+Logger directory set. Using logger directory.
+Plotting t =  1
+Plotting t =  11
+Plotting t =  21
+Plotting t =  31
+Plotting t =  41
+Plotting t =  51
+Plotting t =  61
+Plotting t =  71
+Plotting t =  81
+Plotting t =  91
+-----------------------------
+| time/              |      |
+|    fps             | 0    |
+|    iterations      | 1    |
+|    time_elapsed    | 2432 |
+|    total_timesteps | 2000 |
+-----------------------------
+-----------------------------------------
+| time/                   |             |
+|    fps                  | 0           |
+|    iterations           | 2           |
+|    time_elapsed         | 4829        |
+|    total_timesteps      | 4000        |
+| train/                  |             |
+|    approx_kl            | 0.011039317 |
+|    clip_fraction        | 0.314       |
+|    clip_range           | 0.2         |
+|    entropy_loss         | -8.49       |
+|    explained_variance   | -0.0111     |
+|    learning_rate        | 0.0003      |
+|    loss                 | 0.0522      |
+|    n_updates            | 10          |
+|    policy_gradient_loss | 0.0035      |
+|    std                  | 0.992       |
+|    value_loss           | 9.48        |
+-----------------------------------------
+Plotting t =  5000
+Plotting t =  5010
+Plotting t =  5020
+Plotting t =  5030
+Plotting t =  5040
+Plotting t =  5050
+Plotting t =  5060
+Plotting t =  5070
+Plotting t =  5080
+Plotting t =  5090
+---------------------------------------
+| rollout/                |           |
+|    ep_len_mean          | 5e+03     |
+|    ep_rew_mean          | 3.95e+03  |
+| time/                   |           |
+|    fps                  | 0         |
+|    iterations           | 3         |
+|    time_elapsed         | 7284      |
+|    total_timesteps      | 6000      |
+| train/                  |           |
+|    approx_kl            | 0.0335494 |
+|    clip_fraction        | 0.361     |
+|    clip_range           | 0.2       |
+|    entropy_loss         | -8.46     |
+|    explained_variance   | 0.672     |
+|    learning_rate        | 0.0003    |
+|    loss                 | 0.167     |
+|    n_updates            | 20        |
+|    policy_gradient_loss | 0.0124    |
+|    std                  | 0.992     |
+|    value_loss           | 5.91      |
+---------------------------------------
+ 100% ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6,000/5,000  [ 1:40:23 < 0:00:00 , 1 it/s ]
