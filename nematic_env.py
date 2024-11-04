@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from kinetic_solver import KineticSolver, KineticData
 from stable_baselines3 import PPO
 from utils.model import DownSampleConv
-from utils.defects import theta_cal, S_cal
+from utils.defects import theta_cal, S_cal, calculate_defects
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.policies import ActorCriticCnnPolicy
 from torch.utils.tensorboard import SummaryWriter
@@ -19,7 +19,8 @@ from torch.utils.tensorboard import SummaryWriter
 # 定义强化学习环境
 class ActiveNematicEnv(gym.Env):
     def __init__(self, solver_paras, seed=1234, random=True, device='cuda:0',
-                 solver=None, simulation_data=None, data_path=None, intensity=5):
+                 solver=None, simulation_data=None, data_path=None, intensity=5,
+                 encoder_path=None):
         super(ActiveNematicEnv, self).__init__()
         
         self.device = device
@@ -55,6 +56,10 @@ class ActiveNematicEnv(gym.Env):
         self.intensity = intensity
 
         self.conv = DownSampleConv().to(device)
+        if encoder_path is not None:
+            self.conv.load_state_dict(torch.load(encoder_path))
+            print('Encoder loaded.')
+            self.conv.eval()
         print('Pre iteration done.')
         
     def reset(self, seed=1234):
@@ -137,9 +142,12 @@ class ActiveNematicEnv(gym.Env):
         d11, d12 = self.simulation_data.get_D()
         
         S = S_cal(d11.cpu().data.numpy(), d12.cpu().data.numpy())
+        num_defects = 0
+        # theta = theta_cal(d11.cpu().data.numpy(), d12.cpu().data.numpy())
+        # num_defects = len(calculate_defects(theta, grid_size=1))
         # S is a matrix where zero if defect is present
         # Thus maximize S
-        reward = S.mean().item()
+        reward = S.mean().item() - 0.1 * num_defects
         # print(reward)
         return reward
     

@@ -192,6 +192,11 @@ if __name__ == "__main__":
 
     theta = 0.5 * np.arctan2(2*d12, 2*d11-1)
 
+    defects = calculate_defects(theta, grid_size=1)
+    print(defects)
+    # get the size of defects
+    print(len(defects))
+
     # defects_new = defects_analysis(theta, flag, grid_size=1, eps=3, min_pts=20)
     # plot flag
 

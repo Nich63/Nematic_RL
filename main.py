@@ -41,7 +41,7 @@ simu_params = {
     'inner_steps': 10,
     'outer_steps': 5000
 }
-device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+device = 'cuda:1' if torch.cuda.is_available() else 'cpu'
 
 solver_paras = (geo_params, flow_params, simu_params)
 # env = ActiveNematicEnv(solver_paras, device=device)
@@ -53,12 +53,17 @@ data_path = '/home/hou63/pj2/Nematic_RL/datas/data_2000.pkl'
 # data_path = '/home/hou63/pj2/Nematic_RL/datas/simulation_data_test.pkl'
 # simulation_data = KineticData(*solver.initialize2_pytorch(seed=918), solver.simu_args)
 simulation_data = KineticData.loader(data_path)
+
+encoder_path = '/home/hou63/pj2/Nematic_RL/log_model/encoder_checkpoint.pth'  # 模型保存路径
+
+
+
 # simulation_data = solver.preloop_kinetic(simulation_data, num_itr=32000)
 print(simulation_data)
 simulation_data = simulation_data.loader(data_path, device=device)
 env = ActiveNematicEnv(solver_paras, solver=solver,
                         simulation_data=simulation_data, device=device,
-                        data_path=data_path, intensity=10)
+                        data_path=data_path, intensity=10, encoder_path=encoder_path)
 
 # check_env(env)
 # # 使用PPO算法进行强化学习
@@ -67,16 +72,16 @@ model = PPO(
     n_steps=2000, batch_size=100,
     tensorboard_log="/home/hou63/pj2/Nematic_RL/logs_3")
 
-name_prefix = 'lights_off_model'
+name_prefix = 'lights_on_model'
 
 # model_path = '/home/hou63/pj2/Nematic_RL/logs_2/PPO_3/lights_on_model_20000_steps.zip'
 # model.load(model_path)
 
 # tic = time.time()
-model.learn(total_timesteps=20000,
+model.learn(total_timesteps=10000,
             callback=MyCallback(
                 name_prefix=name_prefix,
-                save_freq=10000,
+                save_freq=5000,
                 plot_freq=5000,
                 env=env),
             progress_bar=True)
