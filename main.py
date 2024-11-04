@@ -41,7 +41,7 @@ simu_params = {
     'inner_steps': 10,
     'outer_steps': 5000
 }
-device = 'cuda:1' if torch.cuda.is_available() else 'cpu'
+device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
 solver_paras = (geo_params, flow_params, simu_params)
 # env = ActiveNematicEnv(solver_paras, device=device)
@@ -50,6 +50,7 @@ solver_paras = (geo_params, flow_params, simu_params)
 
 solver = KineticSolver(*solver_paras, device=device)
 data_path = '/home/hou63/pj2/Nematic_RL/datas/data_2000.pkl'
+# data_path = '/home/hou63/pj2/Nematic_RL/datas/simulation_data_test.pkl'
 # simulation_data = KineticData(*solver.initialize2_pytorch(seed=918), solver.simu_args)
 simulation_data = KineticData.loader(data_path)
 # simulation_data = solver.preloop_kinetic(simulation_data, num_itr=32000)
@@ -72,7 +73,7 @@ name_prefix = 'lights_off_model'
 # model.load(model_path)
 
 # tic = time.time()
-model.learn(total_timesteps=10000,
+model.learn(total_timesteps=20000,
             callback=MyCallback(
                 name_prefix=name_prefix,
                 save_freq=10000,

@@ -190,7 +190,7 @@ class ActiveNematicEnv(gym.Env):
 
         # 8. 使用 roll 函数将矩阵平移并处理周期性边界条件
         light_matrix_shifted = np.roll(light_matrix_centered, shift=(y_translation, x_translation), axis=(0, 1))
-        light_matrix_shifted = np.ones((grid_size, grid_size))
+        # light_matrix_shifted = np.ones((grid_size, grid_size))
         return light_matrix_shifted
 
 from stable_baselines3.common.callbacks import BaseCallback
