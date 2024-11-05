@@ -55,6 +55,8 @@ class ActiveNematicEnv(gym.Env):
 
         self.intensity = intensity
 
+        self.num_defects = 0
+
         self.conv = DownSampleConv().to(device)
         if encoder_path is not None:
             self.conv.load_state_dict(torch.load(encoder_path))
@@ -143,11 +145,12 @@ class ActiveNematicEnv(gym.Env):
         
         S = S_cal(d11.cpu().data.numpy(), d12.cpu().data.numpy())
         num_defects = 0
-        # theta = theta_cal(d11.cpu().data.numpy(), d12.cpu().data.numpy())
-        # num_defects = len(calculate_defects(theta, grid_size=1))
+        theta = theta_cal(d11.cpu().data.numpy(), d12.cpu().data.numpy())
+        num_defects = len(calculate_defects(theta, grid_size=1))
+        self.num_defects = num_defects
         # S is a matrix where zero if defect is present
         # Thus maximize S
-        reward = S.mean().item() - 0.1 * num_defects
+        reward = S.mean().item() - 0.1 * self.num_defects
         # print(reward)
         return reward
     
@@ -198,7 +201,7 @@ class ActiveNematicEnv(gym.Env):
 
         # 8. 使用 roll 函数将矩阵平移并处理周期性边界条件
         light_matrix_shifted = np.roll(light_matrix_centered, shift=(y_translation, x_translation), axis=(0, 1))
-        # light_matrix_shifted = np.ones((grid_size, grid_size))
+        light_matrix_shifted = np.ones((grid_size, grid_size))
         return light_matrix_shifted
 
 from stable_baselines3.common.callbacks import BaseCallback
@@ -245,9 +248,10 @@ class MyCallback(BaseCallback):
         reward = reward[0]
         # 记录当前步骤的奖励
         # value = np.random.random()
-        if self.n_calls <= 10000:
+        if self.n_calls <= 100000:
             self.writer.add_scalar("step_single/reward", reward, global_step=self.num_timesteps)
         # self.logger.record("value/random", value)
+        self.writer.add_scalar("step_single/num_defects", self.env.num_defects, global_step=self.num_timesteps)
 
         if self.n_calls == 2000:
             self.env.simulation_data.dumper('/home/hou63/pj2/Nematic_RL/datas/data_2000.pkl')
@@ -286,6 +290,7 @@ class MyCallback(BaseCallback):
                                       self.locals['actions'][0]),
                                       cmap='gray', alpha=0.5))
         ax.set_title(str(self.locals['actions'][0]))
+        ax.set_xlabel('num of defects: ' + str(self.env.num_defects))
         # plt.colorbar()
         return fig
 
