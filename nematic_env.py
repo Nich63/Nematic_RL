@@ -10,11 +10,27 @@ import matplotlib.pyplot as plt
 from kinetic_solver import KineticSolver, KineticData
 from stable_baselines3 import PPO
 from utils.model import DownSampleConv
-from utils.defects import theta_cal, S_cal, calculate_defects
+from utils.defects_gpu import calculate_defects, S_cal, theta_cal
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.policies import ActorCriticCnnPolicy
+from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from torch.utils.tensorboard import SummaryWriter
 
+
+class CustomPolicyNetwork(BaseFeaturesExtractor):
+    def __init__(self, observation_space, features_dim=64):
+        super(CustomPolicyNetwork, self).__init__(observation_space, features_dim)
+        
+        # 定义网络结构
+        self.net = nn.Sequential(
+            nn.Linear(observation_space.shape[0], 64),
+            nn.ReLU(),
+            nn.Linear(64, features_dim),
+            nn.Tanh()  # 使用 tanh 将输出范围限制在 (-1, 1)
+        )
+
+    def forward(self, x):
+        return self.net(x)
 
 # 定义强化学习环境
 class ActiveNematicEnv(gym.Env):
@@ -40,7 +56,7 @@ class ActiveNematicEnv(gym.Env):
         self.action_space = spaces.Box(low=-1, high=1, shape=(6,), dtype=np.float32)
         
         # 假设状态空间是卷积降维后的32*4*4状态
-        self.observation_space = spaces.Box(low=0, high=255, shape=(16, 64, 64), dtype=np.uint8)
+        self.observation_space = spaces.Box(low=0, high=255, shape=(2, 256, 256), dtype=np.uint8)
         
         if simulation_data is None:
             self.random_flag = True
@@ -132,9 +148,9 @@ class ActiveNematicEnv(gym.Env):
     def _convolutional_reduce(self):
         # 对数据进行降维
         d_data = self.simulation_data.get_D()
-        state = torch.stack(d_data)
-        state = state.unsqueeze(0)
-        state = self.conv(state).detach().cpu().numpy()
+        state = torch.stack(d_data).detach().cpu().numpy()
+        # state = state.unsqueeze(0)
+        # state = self.conv(state).detach().cpu().numpy()
         state = (state - state.min()) / (state.max() - state.min())
         state = (state * 255).astype(np.uint8)
         return state # here state
@@ -143,9 +159,9 @@ class ActiveNematicEnv(gym.Env):
         # reward according S matrix
         d11, d12 = self.simulation_data.get_D()
         
-        S = S_cal(d11.cpu().data.numpy(), d12.cpu().data.numpy())
+        S = S_cal(d11, d12)
         num_defects = 0
-        theta = theta_cal(d11.cpu().data.numpy(), d12.cpu().data.numpy())
+        theta = theta_cal(d11, d12)
         num_defects = len(calculate_defects(theta, grid_size=1))
         self.num_defects = num_defects
         # S is a matrix where zero if defect is present
@@ -163,46 +179,51 @@ class ActiveNematicEnv(gym.Env):
 
     @staticmethod
     def _action2light(self_intensity, action, grid_size=256):
-
+        action = np.clip(action, -1, 1)
+        # 确保 action 在 GPU 上是 PyTorch 张量
+        if not isinstance(action, torch.Tensor):
+            action = torch.tensor(action, device="cuda")
+        
         # 1. 计算椭圆的参数
-        x_center = int((action[0] + 1) / 2 * grid_size)  # 椭圆平移后的中心x坐标
-        y_center = int((action[1] + 1) / 2 * grid_size)  # 椭圆平移后的中心y坐标
-        a = (action[2] + 1) / 2 * grid_size / 2          # 长轴，假设范围是 [10, 60]
-        b = (action[3] + 1) / 2 * grid_size / 2          # 短轴，假设范围是 [5, 35]
-        theta = (action[4] + 1) / 2 * 2 * np.pi          # 方向角范围 [0, 2π]
-        intensity = (action[5] + 1) / 2 * self_intensity     # 光照强度范围 [0, intensity]
+        x_center = ((action[0] + 1) / 2 * grid_size).int()  # 椭圆平移后的中心x坐标
+        y_center = ((action[1] + 1) / 2 * grid_size).int()  # 椭圆平移后的中心y坐标
+        a = (action[2] + 1) / 2 * grid_size / 2             # 长轴，假设范围是 [10, 60]
+        b = (action[3] + 1) / 2 * grid_size / 2             # 短轴，假设范围是 [5, 35]
+        theta = (action[4] + 1) / 2 * 2 * torch.pi          # 方向角范围 [0, 2π]
+        intensity = (action[5] + 1) / 2 * self_intensity    # 光照强度范围 [0, intensity]
 
-        # 2. 构建网格坐标，首先以中心为原点放置椭圆
-        y, x = np.ogrid[:grid_size, :grid_size]
-        x_shifted = x - grid_size // 2  # 椭圆初始位置在中心，平移到正中间
+        # 2. 构建网格坐标，并以中心为原点放置椭圆
+        y, x = torch.meshgrid(torch.arange(grid_size, device="cuda"), torch.arange(grid_size, device="cuda"))
+        x_shifted = x - grid_size // 2  # 平移椭圆初始位置到正中心
         y_shifted = y - grid_size // 2
 
         # 3. 旋转椭圆的角度变换
-        cos_theta = np.cos(theta)
-        sin_theta = np.sin(theta)
+        cos_theta = torch.cos(theta)
+        sin_theta = torch.sin(theta)
         
         # 旋转后的坐标
         x_rotated = x_shifted * cos_theta + y_shifted * sin_theta
         y_rotated = -x_shifted * sin_theta + y_shifted * cos_theta
-        
-        # 4. 椭圆方程 (x_rotated / a)^2 + (y_rotated / b)^2 <= 1 用于定义椭圆内的区域
+
+        # 4. 椭圆方程，用于定义椭圆内的区域
         ellipse_mask = (x_rotated / (a + 1e-6))**2 + (y_rotated / (b + 1e-6))**2 <= 1
 
         # 5. 创建光照矩阵，初始值都设为1，表示椭圆外部区域
-        light_matrix = np.ones((grid_size, grid_size))
+        light_matrix = torch.ones((grid_size, grid_size), device="cuda")
 
         # 6. 渐变效果 - 根据椭圆边缘距离生成，椭圆内从1到指定强度渐变
-        distance = np.sqrt((x_rotated / (a + 1e-6))**2 + (y_rotated / (b + 1e-6))**2)
-        light_matrix_centered = np.where(ellipse_mask, intensity - (intensity - 1) * distance, light_matrix)
+        distance = torch.sqrt((x_rotated / (a + 1e-6))**2 + (y_rotated / (b + 1e-6))**2)
+        light_matrix_centered = torch.where(ellipse_mask, intensity - (intensity - 1) * distance, light_matrix)
 
         # 7. 将光照矩阵平移到指定的中心位置
         x_translation = (x_center - grid_size // 2) % grid_size
         y_translation = (y_center - grid_size // 2) % grid_size
 
         # 8. 使用 roll 函数将矩阵平移并处理周期性边界条件
-        light_matrix_shifted = np.roll(light_matrix_centered, shift=(y_translation, x_translation), axis=(0, 1))
-        light_matrix_shifted = np.ones((grid_size, grid_size))
+        light_matrix_shifted = torch.roll(light_matrix_centered, shifts=(y_translation.item(), x_translation.item()), dims=(0, 1))
+        # light_matrix_shifted = torch.ones((grid_size, grid_size), device="cuda")
         return light_matrix_shifted
+
 
 from stable_baselines3.common.callbacks import BaseCallback
 import numpy as np
@@ -221,12 +242,13 @@ class MyCallback(BaseCallback):
         
         self.save_freq = save_freq
         self.name_prefix = name_prefix
-        self.env = env
+        self.env = env.envs[0]
         self.writer = None
         self.default_log_path = "/home/hou63/pj2/Nematic_RL/logs_2/default"
 
         self.plot_freq = plot_freq
-        self.interval = env.solver.inner_steps
+        self.interval = self.env.solver.inner_steps
+        # self.interval = env.get_attr('solver').inner_steps
         self.plot_flag = False
         self.step_counter = 0
         self.plot_counter = 0
@@ -253,8 +275,8 @@ class MyCallback(BaseCallback):
         # self.logger.record("value/random", value)
         self.writer.add_scalar("step_single/num_defects", self.env.num_defects, global_step=self.num_timesteps)
 
-        if self.n_calls == 2000:
-            self.env.simulation_data.dumper('/home/hou63/pj2/Nematic_RL/datas/data_2000.pkl')
+        # if self.n_calls == 2000:
+        #     self.env.simulation_data.dumper('/home/hou63/pj2/Nematic_RL/datas/data_2000.pkl')
     
         # save model
         if self.n_calls % self.save_freq == 0:
@@ -285,10 +307,9 @@ class MyCallback(BaseCallback):
     def plot(self):
         fig, ax = plt.subplots(1, 1, figsize=(5, 5))
         self.env._my_render(ax)
-
-        fig.colorbar(ax.imshow(self.env._action2light(self.env.intensity,
-                                      self.locals['actions'][0]),
-                                      cmap='gray', alpha=0.5))
+        light_mat = self.env._action2light(self.env.intensity, self.locals['actions'][0]).cpu().numpy()
+        fig.colorbar(ax.imshow(light_mat,
+                                cmap='gray', alpha=0.5))
         ax.set_title(str(self.locals['actions'][0]))
         ax.set_xlabel('num of defects: ' + str(self.env.num_defects))
         # plt.colorbar()

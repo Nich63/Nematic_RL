@@ -365,7 +365,7 @@ class KineticSolver(object):
         # action is a 2d bool field, indicating which area on the stress field is under control
         # the region under control multiplies by matrix action
         # put action to device
-        # action = torch.tensor(action, dtype=torch.float64, device=self.device)
+        action = torch.tensor(action, dtype=torch.float64, device=self.device)
         # for s_h in [s11_h, s12_h, s21_h, s22_h]:
         #     s = torch.real(torch.fft.ifft2(s_h))
         #     s = s * action
