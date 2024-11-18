@@ -6,6 +6,7 @@ import torch.nn as nn
 import time
 import os
 import matplotlib.pyplot as plt
+import h5py
 
 from kinetic_solver import KineticSolver, KineticData
 from stable_baselines3 import PPO
@@ -15,6 +16,7 @@ from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.policies import ActorCriticCnnPolicy
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
 
 
 class CustomPolicyNetwork(BaseFeaturesExtractor):
@@ -73,11 +75,11 @@ class ActiveNematicEnv(gym.Env):
 
         self.num_defects = 0
 
-        self.conv = DownSampleConv().to(device)
-        if encoder_path is not None:
-            self.conv.load_state_dict(torch.load(encoder_path))
-            print('Encoder loaded.')
-            self.conv.eval()
+        # self.conv = DownSampleConv().to(device)
+        # if encoder_path is not None:
+        #     self.conv.load_state_dict(torch.load(encoder_path))
+        #     print('Encoder loaded.')
+        #     self.conv.eval()
         print('Pre iteration done.')
         
     def reset(self, seed=1234):
@@ -107,7 +109,7 @@ class ActiveNematicEnv(gym.Env):
         # print('====steping===')
         # 根据action更新active stress field
         action = np.clip(action, -1, 1)
-        light_matrix = self._action2light(self.intensity, action)
+        light_matrix = self._action2light(self.intensity, self.device, action)
         new_datas, done_flag = self.solver.kinetic(*self.simulation_data.getter(), light_matrix)
         
         # 更新仿真数据
@@ -162,7 +164,7 @@ class ActiveNematicEnv(gym.Env):
         S = S_cal(d11, d12)
         num_defects = 0
         theta = theta_cal(d11, d12)
-        num_defects = len(calculate_defects(theta, grid_size=1))
+        num_defects = len(calculate_defects(theta, grid_size=1, device=self.device))
         self.num_defects = num_defects
         # S is a matrix where zero if defect is present
         # Thus maximize S
@@ -178,11 +180,11 @@ class ActiveNematicEnv(gym.Env):
         return done_flag
 
     @staticmethod
-    def _action2light(self_intensity, action, grid_size=256):
+    def _action2light(self_intensity, device, action, grid_size=256):
         action = np.clip(action, -1, 1)
         # 确保 action 在 GPU 上是 PyTorch 张量
         if not isinstance(action, torch.Tensor):
-            action = torch.tensor(action, device="cuda")
+            action = torch.tensor(action, device=device)
         
         # 1. 计算椭圆的参数
         x_center = ((action[0] + 1) / 2 * grid_size).int()  # 椭圆平移后的中心x坐标
@@ -193,7 +195,7 @@ class ActiveNematicEnv(gym.Env):
         intensity = (action[5] + 1) / 2 * self_intensity    # 光照强度范围 [0, intensity]
 
         # 2. 构建网格坐标，并以中心为原点放置椭圆
-        y, x = torch.meshgrid(torch.arange(grid_size, device="cuda"), torch.arange(grid_size, device="cuda"))
+        y, x = torch.meshgrid(torch.arange(grid_size, device=device), torch.arange(grid_size, device=device))
         x_shifted = x - grid_size // 2  # 平移椭圆初始位置到正中心
         y_shifted = y - grid_size // 2
 
@@ -209,7 +211,7 @@ class ActiveNematicEnv(gym.Env):
         ellipse_mask = (x_rotated / (a + 1e-6))**2 + (y_rotated / (b + 1e-6))**2 <= 1
 
         # 5. 创建光照矩阵，初始值都设为1，表示椭圆外部区域
-        light_matrix = torch.ones((grid_size, grid_size), device="cuda")
+        light_matrix = torch.ones((grid_size, grid_size), device=device)
 
         # 6. 渐变效果 - 根据椭圆边缘距离生成，椭圆内从1到指定强度渐变
         distance = torch.sqrt((x_rotated / (a + 1e-6))**2 + (y_rotated / (b + 1e-6))**2)
@@ -221,7 +223,7 @@ class ActiveNematicEnv(gym.Env):
 
         # 8. 使用 roll 函数将矩阵平移并处理周期性边界条件
         light_matrix_shifted = torch.roll(light_matrix_centered, shifts=(y_translation.item(), x_translation.item()), dims=(0, 1))
-        # light_matrix_shifted = torch.ones((grid_size, grid_size), device="cuda")
+        # light_matrix_shifted = torch.ones((grid_size, grid_size), device=device)
         return light_matrix_shifted
 
 
@@ -233,11 +235,13 @@ class MyCallback(BaseCallback):
     自定义回调，用于记录每一步的奖励并保存到 TensorBoard
     """
     # TODO: 断点重续
-    def __init__(self, verbose=0,
+    def __init__(self, verbose=1,
                 name_prefix: str = 'rl_model',
                 save_freq=2000,
                 plot_freq=5000,
-                env=None):
+                env=None,
+                total_timesteps=20000,
+                dump_flag=False):
         super().__init__(verbose)
         
         self.save_freq = save_freq
@@ -250,9 +254,17 @@ class MyCallback(BaseCallback):
         self.interval = self.env.solver.inner_steps
         # self.interval = env.get_attr('solver').inner_steps
         self.plot_flag = False
+        self.dump_flag = dump_flag
+
         self.step_counter = 0
         self.plot_counter = 0
         self.num_plot = 10
+        self.total_timesteps = total_timesteps
+        if dump_flag:
+            self.action_dump = np.zeros((total_timesteps+1, 6))
+            self.d_dump = torch.zeros((total_timesteps//10+1, 2, 256, 256)).to(self.env.device)
+    
+        # self.prog_bar = None
 
     def _on_training_start(self) -> None:
         if self.logger.dir is not None:
@@ -261,29 +273,78 @@ class MyCallback(BaseCallback):
         else:
             print("Logger directory not set. Using default log directory.")
             self.writer = SummaryWriter(self.default_log_path)
+        # self.progress_bar = tqdm(total=self.total_timesteps, dynamic_ncols=True, leave=False)
+
+    def _on_rollout_end(self) -> None:
+        # 获取 rollout 中的所有奖励
+        rewards = self.locals['rollout_buffer'].rewards
+        # 计算平均奖励
+        average_reward = rewards.mean()
+        # 记录平均奖励到日志中
+        self.logger.record("rollout/average_reward", average_reward)
+        
+        # 打印信息（可选）
+        if self.verbose > 0:
+            print(f"Rollout average reward: {average_reward}")
 
     def _on_step(self) -> bool:
         """
         每一步环境交互时调用
         """
-        reward = self.locals['rewards']  # 从环境中获取当前的奖励
+
+        # self.progress_bar.update(1)
+        # self.progress_bar.refresh() 
+
+        # get reward and action at step
+        reward = self.locals['rewards']
         reward = reward[0]
+        action = self.locals['actions'][0]
+
+        # if self.n_calls == 2000:
+        #     # save data to h5
+        #     h5_path = os.path.join(self.logger.dir, 'data_dump.h5')
+        #     with h5py.File(h5_path, 'w') as f:
+        #         f.create_dataset('psi_h', data=self.env.simulation_data.psi_h.cpu().numpy())
+        #         f.create_dataset('psim1_h', data=self.env.simulation_data.psim1_h.cpu().numpy())
+        #         f.create_dataset('u_h', data=self.env.simulation_data.u_h.cpu().numpy())
+        #         f.create_dataset('v_h', data=self.env.simulation_data.v_h.cpu().numpy())
+        #         f.create_dataset('Bm1_h', data=self.env.simulation_data.Bm1_h.cpu().numpy())
+        #         f.create_dataset('simu_args', data=self.env.simulation_data.simu_args)
+        #     print('Data dump saved to ', h5_path)
+        #     # self.n_calls = jahjajaja
+
         # 记录当前步骤的奖励
-        # value = np.random.random()
         if self.n_calls <= 100000:
             self.writer.add_scalar("step_single/reward", reward, global_step=self.num_timesteps)
         # self.logger.record("value/random", value)
         self.writer.add_scalar("step_single/num_defects", self.env.num_defects, global_step=self.num_timesteps)
-
-        # if self.n_calls == 2000:
-        #     self.env.simulation_data.dumper('/home/hou63/pj2/Nematic_RL/datas/data_2000.pkl')
     
         # save model
         if self.n_calls % self.save_freq == 0:
-            checkpoint_path = os.path.join(self.logger.dir, f"{self.name_prefix}.zip")
+            checkpoint_path = os.path.join(self.logger.dir, f"{self.name_prefix}_{self.num_timesteps}.zip")
             self.model.save(checkpoint_path)
             if self.verbose > 0:
                 print(f"Saving model checkpoint to {checkpoint_path} at step {self.num_timesteps}")
+
+        # print into console
+        if self.n_calls % 1000 == 0:
+            print(f"Step {self.num_timesteps}/{self.total_timesteps} - "
+                f"Progress: {self.num_timesteps / self.total_timesteps:.2%}", flush=True)
+
+        if self.dump_flag:
+            self.action_dump[self.num_timesteps-1] = action
+            if self.num_timesteps % 10 == 0:
+                # TODO: check if nan in D
+                d11, d12 =  self.env.simulation_data.get_D()
+                self.d_dump[self.num_timesteps//10] = torch.stack([d11, d12])
+
+
+        if self.dump_flag and self.n_calls==self.total_timesteps:
+            h5_path = os.path.join(self.logger.dir, 'data_dump.h5')
+            with h5py.File(h5_path, 'w') as f:
+                f.create_dataset('actions', data=self.action_dump)
+                f.create_dataset('D', data=self.d_dump.cpu().numpy())
+            print('Data dump saved to ', h5_path)
 
         # plot
         if self.n_calls % self.plot_freq == 0 or self.n_calls == 1:
@@ -307,13 +368,27 @@ class MyCallback(BaseCallback):
     def plot(self):
         fig, ax = plt.subplots(1, 1, figsize=(5, 5))
         self.env._my_render(ax)
-        light_mat = self.env._action2light(self.env.intensity, self.locals['actions'][0]).cpu().numpy()
+        light_mat = self.env._action2light(self.env.intensity, self.env.device, self.locals['actions'][0]).cpu().numpy()
         fig.colorbar(ax.imshow(light_mat,
-                                cmap='gray', alpha=0.5))
-        ax.set_title(str(self.locals['actions'][0]))
+                                cmap='gray', alpha=0.5, vmin=0, vmax=self.env.intensity))
+        ax.set_title(str(self.locals['actions'][0]), fontsize=6)
         ax.set_xlabel('num of defects: ' + str(self.env.num_defects))
         # plt.colorbar()
         return fig
+
+    def _on_training_end(self) -> None:
+        # 关闭进度条
+        # if self.progress_bar is not None:
+        #     self.progress_bar.close()
+
+        # 关闭 TensorBoard 日志
+        self.writer.close()
+        if self.dump_flag:
+            h5_path = os.path.join(self.logger.dir, 'data_dump_1.h5')
+            with h5py.File(h5_path, 'w') as f:
+                f.create_dataset('actions', data=self.action_dump)
+                f.create_dataset('D', data=self.d_dump.cpu().numpy())
+            print('In the End. Data dump saved to ', h5_path)
 
 
 if __name__ == '__main__':

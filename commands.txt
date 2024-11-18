@@ -1,0 +1,1 @@
+tensorboard --logdir=/home/hou63/pj2/Nematic_RL/log_ucsd --host=127.0.0.1 --samples_per_plugin=images=50 --port=

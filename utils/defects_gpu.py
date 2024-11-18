@@ -20,15 +20,15 @@ def delta_theta_cal(theta1, theta2):
     delta = torch.where(delta > torch.pi / 2, delta - torch.pi, delta)
     return delta
 
-def calculate_defects(theta_field, grid_size=1):
+def calculate_defects(theta_field, grid_size=1, device="cuda"):
     rows, cols = theta_field.shape
 
     # 定义defect list
     defects = []
 
     # 提取小区域的索引坐标
-    i_indices = torch.arange(grid_size, rows - grid_size, grid_size, device="cuda")
-    j_indices = torch.arange(grid_size, cols - grid_size, grid_size, device="cuda")
+    i_indices = torch.arange(grid_size, rows - grid_size, grid_size, device=device)
+    j_indices = torch.arange(grid_size, cols - grid_size, grid_size, device=device)
     
     # 使用索引网格来构建所有小区域的中心点
     ii, jj = torch.meshgrid(i_indices, j_indices, indexing='ij')
