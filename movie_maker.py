@@ -1,73 +1,96 @@
-import torch
+import numpy as np
 import matplotlib.pyplot as plt
-from utils.defects import S_cal
-import numpy as np
-import pickle
-import gymnasium as gym
-from gymnasium import spaces
-import numpy as np
-import torch
-import torch.nn as nn
-import tensorboard
+import matplotlib.colors as mcolors
+import moviepy.editor as mpy
+
 import time
-import imageio
+import h5py
+import numpy as np
+import matplotlib.pyplot as plt
+import torch
+from utils.defects import theta_cal, calculate_defects, S_cal, plot_defects
+from nematic_env import ActiveNematicEnv
 
-from utils.model import DownSampleConv
-from utils.defects import theta_cal, S_cal
-from kinetic_solver import KineticSolver, KineticData
-from nematic_env import ActiveNematicEnv, MyCallback
+file_path = '/home/hou63/pj2/Nematic_RL/log_ucsd/PPO_25/data_dump.h5'
+print('model loaded from:', file_path)
+f = h5py.File(file_path, 'r')
+print(f.keys())
+D = f['D']
+actions = f['actions']
 
-from stable_baselines3 import PPO
-from stable_baselines3.common.callbacks import BaseCallback
-from stable_baselines3.common.env_checker import check_env
-from stable_baselines3.common.policies import ActorCriticCnnPolicy
-from stable_baselines3.common.monitor import ResultsWriter
+print(D.shape, actions.shape)
+actions = np.array(actions)
 
+new_action = actions[::10]
+print(new_action.shape)
 
-# 初始化物理仿真器
-geo_params = {
-    'N': 256,
-    'Nth': 256,
-    'L': 10
-}
-flow_params = {
-    'dT': 0.3,
-    'dR': 0.3,
-    'alpha': -10,
-    'beta': 1.0,
-    'zeta': 2,
-    'V0': 0.0
-}
-simu_params = {
-    'dt': 0.0004,
-    'seed': 1234,
-    'inner_steps': 10,
-    'outer_steps': 5000
-}
-device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+D = D[1500:2000, :, :, :]
+new_action = new_action[1500:2000]
+print('Data step from 1500 to 2000')
 
-solver_paras = (geo_params, flow_params, simu_params)
-# env = ActiveNematicEnv(solver_paras, device=device)
-
-# solver_paras = (geo_params, flow_params, simu_params)
-
-solver = KineticSolver(*solver_paras, device=device)
-data_path = '/home/yuh113/pj2/Nematic_RL/datas/data_2000.pkl'
-# data_path = '/home/hou63/pj2/Nematic_RL/datas/simulation_data_test.pkl'
-# simulation_data = KineticData(*solver.initialize2_pytorch(seed=918), solver.simu_args)
-simulation_data = KineticData.loader(data_path)
-
-encoder_path = '/home/yuh113/pj2/Nematic_RL/log_model/encoder_checkpoint.pth'  # 模型保存路径
+print(D.shape, new_action.shape)
 
 
-# simulation_data = solver.preloop_kinetic(simulation_data, num_itr=32000)
-print(simulation_data)
-simulation_data = simulation_data.loader(data_path, device=device)
-env = ActiveNematicEnv(solver_paras, solver=solver,
-                        simulation_data=simulation_data, device=device,
-                        data_path=data_path, intensity=10, encoder_path=encoder_path)
+def generate_video_with_improved_display(D, actions, theta_cal, calculate_defects, plot_defects, _action2light, output_path="output.mp4"):
+    n_step, _, grid_size, _ = D.shape
+    assert len(actions) == n_step, "Mismatch between steps in D and actions."
 
-modal_path = '/home/yuh113/pj2/Nematic_RL/logs_ucsd/PPO_11/lights_on_model.zip'
-model = PPO.load(modal_path, env=env)
+    frames = []  # To store the generated frames
+    cmap = "gray"  # Use gray colormap for the action heatmap
+    norm = mcolors.Normalize(vmin=0, vmax=1)  # Normalize for heatmap
 
-print('model loaded')
+    for t in range(n_step):
+        print(f"Processing frame {t + 1}/{n_step}...")
+
+        # Step 1: Compute theta
+        theta = theta_cal(D[t, 0, :, :], D[t, 1, :, :])
+
+        # Step 2: Compute defects
+        defects = calculate_defects(theta)
+
+        # Step 3: Compute action heatmap
+        action_heatmap = _action2light(self_intensity=1.0, device=None, action=actions[t], grid_size=grid_size)
+
+        # Step 4: Create plot
+        fig, ax = plt.subplots(figsize=(4, 4), dpi=100)
+        ax.set_axis_off()  # Remove axis for the main plot
+
+        # Plot defects
+        plot_defects(defects, theta, ax)
+
+        # Overlay action heatmap in grayscale
+        ax.imshow(action_heatmap, cmap=cmap, alpha=0.5, extent=[0, grid_size, 0, grid_size], origin="lower")
+
+        # Add colorbar
+        sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+        cbar = fig.colorbar(sm, ax=ax, orientation="vertical", fraction=0.046, pad=0.04)
+        cbar.set_label("Action Intensity", fontsize=10)
+
+        # Add title below plot to display action[5]
+        action_text = f"Step: {t + 1}/{n_step}, Action[5]: {actions[t][5]:.2f}"
+        ax.set_title(action_text, fontsize=12, pad=10)
+
+        # Save current frame
+        fig.canvas.draw()
+        frame = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        frame = frame.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        frames.append(frame)
+
+        plt.close(fig)
+
+    # Step 5: Generate video
+    print("Generating video...")
+    clip = mpy.ImageSequenceClip(frames, fps=10)  # 24 FPS
+    clip.write_videofile(output_path, codec="libx264")
+    print(f"Video saved to {output_path}")
+
+# Example usage:
+# generate_video_with_improved_display(D, actions, theta_cal, calculate_defects, plot_defects, _action2light, "defects_video.mp4")
+
+tic = time.time()
+# Example usage:
+generate_video_with_improved_display(D, new_action, theta_cal, calculate_defects, plot_defects,
+               ActiveNematicEnv._action2light, "/home/hou63/pj2/Nematic_RL/movie/test/defects_video_lights_on1.mp4")
+
+toc = time.time()
+print(f"Time taken: {toc - tic:.2f} seconds.")            

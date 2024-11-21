@@ -24,6 +24,7 @@ from stable_baselines3.common.policies import ActorCriticCnnPolicy
 from stable_baselines3.common.monitor import ResultsWriter
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from stable_baselines3.common.utils import get_schedule_fn
+from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 
 
 # 初始化物理仿真器
@@ -95,22 +96,60 @@ env = VecNormalize(env, training=True, norm_obs=True, norm_reward=False)
 
 # check_env(env)
 
+class CustomCnnExtractor(BaseFeaturesExtractor):
+    def __init__(self, observation_space, features_dim=64):
+        super(CustomCnnExtractor, self).__init__(observation_space, features_dim)
+        self.cnn = nn.Sequential(
+            nn.Conv2d(observation_space.shape[0], 32, kernel_size=8, stride=4),
+            nn.ReLU(),
+            nn.Conv2d(32, 64, kernel_size=4, stride=2),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, kernel_size=3, stride=1),
+            nn.ReLU(),
+            nn.Flatten()
+        )
+        # 自动计算扁平化后的维度
+        with torch.no_grad():
+            n_flatten = self.cnn(torch.zeros(1, *observation_space.shape)).shape[1]
+            print('n_flatten:', n_flatten)
+            print('features_dim:', features_dim)
+        self.linear = nn.Sequential(
+            nn.Linear(n_flatten, features_dim),
+            nn.ReLU()
+        )
+
+    def forward(self, observations):
+        return self.linear(self.cnn(observations))
+
+class CustomActorCriticCnnPolicy(ActorCriticCnnPolicy):
+    def __init__(self, *args, **kwargs):
+        super(CustomActorCriticCnnPolicy, self).__init__(
+            *args,
+            **kwargs,
+            features_extractor_class=CustomCnnExtractor,
+            features_extractor_kwargs={"features_dim": 64}
+        )
+        print('self.features_dim:', self.features_dim)
+        self.action_net = nn.Sequential(
+            nn.Linear(self.features_dim, self.action_space.shape[0]),
+            nn.Tanh()
+        )
 
 ###############################################################
 # policy_kwargs = dict(features_extractor_class=CustomPolicyNetwork)
 
 
-model_path = '/home/hou63/pj2/Nematic_RL/log_ucsd/PPO_27/lights_on_model_15000.zip'
+ent_coef = 0.01
+
+model_path = '/home/hou63/pj2/Nematic_RL/log_new/PPO_9/lights_off_model_15000.zip'
 model = PPO.load(model_path, env=env, device=device)
 print('model loaded from: ', model_path)
 
-ent_coef = 0.004
-
 model = PPO(
-    ActorCriticCnnPolicy, env, verbose=1, device=device,
+    CustomActorCriticCnnPolicy, env, verbose=1, device=device,
     n_steps=5000, batch_size=250,
-    learning_rate=model.learning_rate*0.90, ent_coef=ent_coef,
-    tensorboard_log="/home/hou63/pj2/Nematic_RL/log_ucsd",
+    ent_coef=ent_coef, learning_rate=model.learning_rate*1.20,
+    tensorboard_log="/home/hou63/pj2/Nematic_RL/log_new",
     n_epochs=4, clip_range=0.1, gae_lambda=0.9,
     policy_kwargs=dict(normalize_images=False))
 
@@ -121,9 +160,9 @@ print('model hyperparameters: n_steps={}, batch_size={}, learning_rate={}, ent_c
     model.n_steps, model.batch_size, model.learning_rate, ent_coef, model.clip_range, model.gae_lambda))
 
 
-name_prefix = 'lights_on_model'
+name_prefix = 'lights_off_model'
 
-total_timesteps=10000
+total_timesteps=25000
 
 mycallback = MyCallback(name_prefix=name_prefix,
                         save_freq=5000,

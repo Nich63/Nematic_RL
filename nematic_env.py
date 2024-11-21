@@ -52,12 +52,11 @@ class ActiveNematicEnv(gym.Env):
             self.seed = np.random.randint(0, 1000)
         else:
             self.seed = seed
-        
-        # 定义动作空间和状态空间
-        # 假设动作是 6 维向量 (x, y, a, b, theta)
+
+        # (x, y, a, b, theta)
         self.action_space = spaces.Box(low=-1, high=1, shape=(6,), dtype=np.float32)
         
-        # 假设状态空间是卷积降维后的32*4*4状态
+        # 32*4*4状态
         self.observation_space = spaces.Box(low=0, high=255, shape=(2, 256, 256), dtype=np.uint8)
         
         if simulation_data is None:
@@ -93,7 +92,6 @@ class ActiveNematicEnv(gym.Env):
         else:
             self.simulation_data = self.simulation_data.loader(self.data_path, device=self.device)
         
-        # 返回降维后的初始状态
         return self._convolutional_reduce(), {}
 
     @staticmethod
@@ -300,18 +298,8 @@ class MyCallback(BaseCallback):
         reward = reward[0]
         action = self.locals['actions'][0]
 
-        # if self.n_calls == 2000:
-        #     # save data to h5
-        #     h5_path = os.path.join(self.logger.dir, 'data_dump.h5')
-        #     with h5py.File(h5_path, 'w') as f:
-        #         f.create_dataset('psi_h', data=self.env.simulation_data.psi_h.cpu().numpy())
-        #         f.create_dataset('psim1_h', data=self.env.simulation_data.psim1_h.cpu().numpy())
-        #         f.create_dataset('u_h', data=self.env.simulation_data.u_h.cpu().numpy())
-        #         f.create_dataset('v_h', data=self.env.simulation_data.v_h.cpu().numpy())
-        #         f.create_dataset('Bm1_h', data=self.env.simulation_data.Bm1_h.cpu().numpy())
-        #         f.create_dataset('simu_args', data=self.env.simulation_data.simu_args)
-        #     print('Data dump saved to ', h5_path)
-        #     # self.n_calls = jahjajaja
+        # if np.any(action < -1) or np.any(action > 1):
+        #     print(f"Action out of bounds! Action: {action}, Expected: {-1} to {1}")
 
         # 记录当前步骤的奖励
         if self.n_calls <= 100000:
